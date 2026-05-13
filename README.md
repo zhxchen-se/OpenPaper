@@ -142,7 +142,9 @@ some-paper-ase2023.pdf              → ASE 2023
 
 ## 🔄 开机自启（可选）
 
-在 Windows 上注册任务计划，登录后自动后台启动服务：
+### Windows
+
+注册任务计划，登录后自动后台启动服务：
 
 ```powershell
 # 以普通用户权限运行（不需要管理员）
@@ -153,6 +155,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_autostart.ps1
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\uninstall_autostart.ps1
+```
+
+### macOS / Linux
+
+```bash
+# 安装自启（macOS: launchd, Linux: systemd user service）
+bash scripts/install_autostart.sh
+
+# 卸载自启
+bash scripts/uninstall_autostart.sh
 ```
 
 注册成功后日志输出到 `waatchdog.log`，方便排查问题。
