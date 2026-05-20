@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import os
+import sys
 import time
 import subprocess
-import sys
-import os
 import shutil
 import threading
 import json
@@ -11,12 +11,15 @@ from urllib.parse import urlparse, parse_qs, unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from watchdog.observers import Observer
 
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from backend.utils import configure_stdio, log, resolve_workspace_root, safe_rel
 from backend.metadata import (
     delete_paper, list_recycle_bin, restore_paper, purge_paper, purge_all_papers,
     save_metadata, update_paper, load_metadata, atomic_write_metadata,
 )
-from backend.speedread import generate_speedread, test_speedread_config
+from backend.quick_reading import generate_speedread, test_speedread_config
 from backend.watcher import PDFHandler
 
 WORKSPACE_ROOT = resolve_workspace_root()
