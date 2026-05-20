@@ -3,9 +3,9 @@ papers/**
 !papers/demo/
 !papers/demo/**
 
-# metadata is user-local data; metadata.demo.json is the tracked template
-metadata.json
-stats.data.json
+# runtime data synced with papers/; metadata.demo.json remains the tracked template
+papers/metadata.json
+papers/stats.data.json
 
 # Python
 __pycache__/

@@ -227,7 +227,7 @@ const PALETTE = [
 const statusEl = document.getElementById('status');
 
 function normalizeStatsPayload(data, source) {
-    if (source === 'stats.data.json') {
+    if (source === 'papers/stats.data.json') {
         return Array.isArray(data?.papers) ? data.papers : null;
     }
     if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -239,8 +239,8 @@ function normalizeStatsPayload(data, source) {
 async function loadStatsSource() {
     const ts = Date.now();
     const candidates = [
-        { url: `stats.data.json?ts=${ts}`, source: 'stats.data.json' },
-        { url: `metadata.json?ts=${ts}`, source: 'metadata.json' },
+        { url: `papers/stats.data.json?ts=${ts}`, source: 'papers/stats.data.json' },
+        { url: `papers/metadata.json?ts=${ts}`, source: 'papers/metadata.json' },
     ];
     let lastError = null;
     for (const candidate of candidates) {

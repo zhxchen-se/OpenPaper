@@ -304,8 +304,8 @@ button.toggle-on:hover { background:var(--accent-color-hover); }
             </div>
             <div class="modal-tab-pane" data-pane="files">
                 <div class="file-actions-block">
-                    <button type="button" id="bind-file">📂 绑定 metadata.json（启用自动覆盖保存）</button>
-                    <button type="button" id="download-json">💾 导出 metadata.json</button>
+                    <button type="button" id="bind-file">📂 绑定 papers/metadata.json（启用自动覆盖保存）</button>
+                    <button type="button" id="download-json">💾 导出 papers/metadata.json</button>
                     <button type="button" id="reload-data">🔄 重新加载</button>
                 </div>
             </div>
@@ -331,7 +331,7 @@ button.toggle-on:hover { background:var(--accent-color-hover); }
                     <div class="ai-settings-block">
                         <label for="ai-api-key">API Key</label>
                         <input type="password" id="ai-api-key" placeholder="sk-... 或 其他格式的 key">
-                        <div class="ai-settings-tip">仅保存在当前浏览器，不会写入 metadata.json。</div>
+                        <div class="ai-settings-tip">仅保存在当前浏览器，不会写入 papers/metadata.json。</div>
                     </div>
                     <div class="ai-settings-block">
                         <label for="ai-model">模型名称</label>
@@ -892,7 +892,7 @@ function render(list) {
     papersContainer.innerHTML = '';
 
     if (!list.length) {
-        papersContainer.innerHTML = `<div style="text-align:center; padding:40px; color:#666;">暂无数据，请加载 metadata.json</div>`;
+        papersContainer.innerHTML = `<div style="text-align:center; padding:40px; color:#666;">暂无数据，请加载 papers/metadata.json</div>`;
         return;
     }
 
@@ -1664,17 +1664,17 @@ function refreshVenueFilterOptions() {
 
 async function loadMetadataViaFetch({ fallbackToEmbedded = false } = {}) {
     try {
-        const response = await fetch(`metadata.json?ts=${Date.now()}`, { cache: 'no-store' });
+        const response = await fetch(`papers/metadata.json?ts=${Date.now()}`, { cache: 'no-store' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         applyMetadataMap(data);
-        showStatus('已从同目录 metadata.json 加载数据', false);
+        showStatus('已从 papers/metadata.json 加载数据', false);
     } catch (error) {
         if (fallbackToEmbedded && Array.isArray(EMBEDDED_PAPERS) && EMBEDDED_PAPERS.length) {
             applyMetadataMap(arrayToMetadataMap(EMBEDDED_PAPERS));
-            showStatus('无法读取 metadata.json，已回退至内置数据；建议使用本地服务器或绑定文件以保持同步', true);
+            showStatus('无法读取 papers/metadata.json，已回退至内置数据；建议使用本地服务器或绑定文件以保持同步', true);
         } else {
-            showStatus('无法直接读取 metadata.json，请使用本地服务器或"绑定"按钮手动选择文件', true);
+            showStatus('无法直接读取 papers/metadata.json，请使用本地服务器或"绑定"按钮手动选择文件', true);
             render([]);
         }
     }
@@ -1738,7 +1738,7 @@ async function persistMetadata({ auto }) {
         const writable = await metadataHandle.createWritable();
         await writable.write(payload);
         await writable.close();
-        showStatus('metadata.json 已自动覆盖保存', false);
+        showStatus('papers/metadata.json 已自动覆盖保存', false);
     } else {
         triggerDownloadFallback(payload, auto);
     }
@@ -1799,7 +1799,7 @@ function triggerDownloadFallback(payload, auto) {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    showStatus('浏览器限制，已触发 metadata.json 下载，请手动替换或使用"绑定/选择保存文件"', true);
+    showStatus('浏览器限制，已触发 metadata.json 下载，请手动放到 papers/metadata.json 或使用"绑定/选择保存文件"', true);
 }
 
 async function promptForSaveHandle(auto) {

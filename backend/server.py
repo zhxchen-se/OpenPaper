@@ -24,12 +24,31 @@ WORKSPACE_ROOT = resolve_workspace_root()
 # Paths resolved from the workspace root.
 PDF_DIR = os.path.join(WORKSPACE_ROOT, "papers")
 BUILD_SCRIPT = os.path.join(WORKSPACE_ROOT, "build.py")
-METADATA_FILE = os.path.join(WORKSPACE_ROOT, "metadata.json")
+RUNTIME_DATA_DIR = PDF_DIR
+METADATA_FILE = os.path.join(RUNTIME_DATA_DIR, "metadata.json")
+STATS_FILE = os.path.join(RUNTIME_DATA_DIR, "stats.data.json")
+LEGACY_METADATA_FILE = os.path.join(WORKSPACE_ROOT, "metadata.json")
+LEGACY_STATS_FILE = os.path.join(WORKSPACE_ROOT, "stats.data.json")
 METADATA_DEMO_FILE = os.path.join(WORKSPACE_ROOT, "metadata.demo.json")
 
-# Bootstrap metadata.json from the tracked demo file on first run.
-if not os.path.exists(METADATA_FILE) and os.path.exists(METADATA_DEMO_FILE):
-    shutil.copy2(METADATA_DEMO_FILE, METADATA_FILE)
+def _move_if_missing(src: str, dst: str) -> None:
+    if os.path.exists(dst) or not os.path.exists(src):
+        return
+    try:
+        shutil.move(src, dst)
+    except Exception:
+        shutil.copy2(src, dst)
+
+
+def _bootstrap_runtime_data_files() -> None:
+    os.makedirs(RUNTIME_DATA_DIR, exist_ok=True)
+    _move_if_missing(LEGACY_METADATA_FILE, METADATA_FILE)
+    _move_if_missing(LEGACY_STATS_FILE, STATS_FILE)
+    if not os.path.exists(METADATA_FILE) and os.path.exists(METADATA_DEMO_FILE):
+        shutil.copy2(METADATA_DEMO_FILE, METADATA_FILE)
+
+
+_bootstrap_runtime_data_files()
 
 RECYCLE_DIR = os.path.join(WORKSPACE_ROOT, ".recycle_bin")
 SPEEDREAD_CACHE_DIR = os.path.join(WORKSPACE_ROOT, ".speedread_cache")

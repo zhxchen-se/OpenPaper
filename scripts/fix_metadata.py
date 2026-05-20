@@ -7,14 +7,14 @@ from backend.metadata import atomic_write_metadata
 from backend.utils import configure_stdio
 
 PDF_DIR = "papers"
-METADATA_FILE = "metadata.json"
+METADATA_FILE = os.path.join(PDF_DIR, "metadata.json")
 
 
 def main() -> None:
     configure_stdio()
 
     if not os.path.exists(METADATA_FILE):
-        print("metadata.json not found, nothing to repair")
+        print("papers/metadata.json not found, nothing to repair")
         return
 
     with open(METADATA_FILE, "r", encoding="utf-8") as file_obj:

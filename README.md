@@ -217,13 +217,13 @@ OpenPaper/
 **Q：放入 PDF 后页面没有更新？**  
 A: Confirm `backend/server.py` is running, refresh the browser (F5), then check `waatchdog.log` if needed.
 **Q：会议/年份识别不对怎么办？**  
-A：点击论文卡片右上角的编辑按钮，手动修改会议、年份、标题等字段，修改后自动保存到 `metadata.json`。
+A：点击论文卡片右上角的编辑按钮，手动修改会议、年份、标题等字段，修改后自动保存到 `papers/metadata.json`。
 
 **Q：AI 速读提示"连接失败"？**  
 A：先点击设置页的「测试连通性」，确认 Base URL 和 API Key 正确。国内网络访问 OpenAI 官方接口时可能需要代理，推荐使用 DeepSeek 或 VectorEngine 等国内接口。
 
 **Q：多台设备共享怎么做？**  
-A：把整个仓库放在局域网共享盘或同步盘（OneDrive、Nutstore 等）中，`metadata.json` 和 `.speedread_cache/` 会随之同步；`papers/` 目录默认被 `.gitignore` 排除，各自本地存放 PDF 即可。
+A：如果你本来就用 Syncthing/网盘同步 `papers/`，直接把 PDF、`papers/metadata.json` 和 `papers/stats.data.json` 一起同步即可；代码仓库本身继续单独管理，不需要把这些本地数据放进 git。
 
 **Q：想自定义前端样式怎么做？**  
 A：编辑 `template.html`，修改完成后运行 `python build.py` 重新生成 `index.html`，刷新浏览器生效。

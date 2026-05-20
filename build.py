@@ -9,7 +9,7 @@ from backend.metadata import atomic_write_metadata
 from backend.utils import configure_stdio
 
 PDF_DIR = "papers"
-METADATA_FILE = "metadata.json"
+METADATA_FILE = os.path.join(PDF_DIR, "metadata.json")
 OUTPUT_HTML = "index.html"
 TEMPLATE_HTML = "template.html"
 
