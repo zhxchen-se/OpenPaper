@@ -15,6 +15,7 @@ from urllib.parse import unquote
 from backend.utils import log, safe_rel
 
 _Result = namedtuple("_Result", ["status", "payload"])
+STATS_SOURCE_FILENAME = "stats.data.json"
 
 
 # ---------------------------------------------------------------------------
@@ -31,13 +32,56 @@ def load_metadata(metadata_file: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _atomic_write_json(data: dict, target_file: str) -> None:
+    target_abs = os.path.join(target_file)
+    tmp_abs = target_abs + ".tmp"
+    with open(tmp_abs, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_abs, target_abs)
+
+
+def _build_stats_source_payload(metadata: dict) -> dict:
+    papers = []
+    for file_key in sorted(metadata):
+        paper = metadata.get(file_key)
+        if not isinstance(paper, dict):
+            continue
+        tags = paper.get("tags")
+        if not isinstance(tags, list):
+            tags = []
+        papers.append({
+            "file_key": paper.get("file_key") or file_key,
+            "title": paper.get("title", ""),
+            "authors": paper.get("authors", ""),
+            "year": paper.get("year", ""),
+            "venue": paper.get("venue", ""),
+            "tags": tags,
+            "pdf": paper.get("pdf", ""),
+            "pdf_local": paper.get("pdf_local", ""),
+            "read": bool(paper.get("read", False)),
+            "added_at": paper.get("added_at", ""),
+        })
+    return {
+        "version": 1,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "paper_count": len(papers),
+        "papers": papers,
+    }
+
+
+def write_stats_source(metadata: dict, metadata_file: str) -> str:
+    """Write stats.data.json next to metadata.json for dashboard sync."""
+    meta_abs = os.path.abspath(os.path.join(metadata_file))
+    stats_file = os.path.join(os.path.dirname(meta_abs), STATS_SOURCE_FILENAME)
+    _atomic_write_json(_build_stats_source_payload(metadata), stats_file)
+    return stats_file
+
+
 def atomic_write_metadata(data: dict, metadata_file: str) -> None:
     """Atomically write metadata.json via tmp + os.replace."""
     meta_abs = os.path.join(metadata_file)
-    tmp_abs = meta_abs + ".tmp"
-    with open(tmp_abs, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp_abs, meta_abs)
+    _atomic_write_json(data, meta_abs)
+    write_stats_source(data, meta_abs)
 
 
 # ---------------------------------------------------------------------------
@@ -219,8 +263,7 @@ def restore_paper(
             if current.get("pdf_local"):
                 merged["pdf_local"] = current["pdf_local"]
             meta[file_key] = merged
-            with open(meta_abs, "w", encoding="utf-8") as f:
-                json.dump(meta, f, ensure_ascii=False, indent=2)
+            atomic_write_metadata(meta, meta_abs)
         except Exception as exc:
             log(f"合并恢复 metadata 失败: {exc}")
 

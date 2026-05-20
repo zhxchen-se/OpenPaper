@@ -123,7 +123,7 @@ h1 { margin: 0; font-size: 1.6em; }
     <a class="back-btn" href="index.html">← 返回主页</a>
 </header>
 
-<p id="status">正在加载 metadata.json ...</p>
+<p id="status">正在加载统计数据 ...</p>
 
 <!-- KPI -->
 <div id="kpi" class="kpi-grid"></div>
@@ -226,16 +226,42 @@ const PALETTE = [
 ];
 const statusEl = document.getElementById('status');
 
-async function loadMetadata() {
-    try {
-        const resp = await fetch(`metadata.json?ts=${Date.now()}`, { cache: 'no-store' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        return await resp.json();
-    } catch (err) {
-        statusEl.textContent = '❌ 无法加载 metadata.json：' + err.message + '。请通过 backend/server.py 启动本地服务后再访问。';
-        statusEl.style.color = '#dc2626';
-        return null;
+function normalizeStatsPayload(data, source) {
+    if (source === 'stats.data.json') {
+        return Array.isArray(data?.papers) ? data.papers : null;
     }
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+        return Object.values(data);
+    }
+    return null;
+}
+
+async function loadStatsSource() {
+    const ts = Date.now();
+    const candidates = [
+        { url: `stats.data.json?ts=${ts}`, source: 'stats.data.json' },
+        { url: `metadata.json?ts=${ts}`, source: 'metadata.json' },
+    ];
+    let lastError = null;
+    for (const candidate of candidates) {
+        try {
+            const resp = await fetch(candidate.url, { cache: 'no-store' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            const papers = normalizeStatsPayload(data, candidate.source);
+            if (!papers) throw new Error('invalid payload');
+            return {
+                papers,
+                source: candidate.source,
+                generatedAt: typeof data?.generated_at === 'string' ? data.generated_at : '',
+            };
+        } catch (err) {
+            lastError = err;
+        }
+    }
+    statusEl.textContent = '❌ 无法加载统计数据：' + (lastError?.message || 'unknown error') + '。请通过 backend/server.py 启动本地服务后再访问。';
+    statusEl.style.color = '#dc2626';
+    return null;
 }
 
 function fmt(n) { return new Intl.NumberFormat().format(n); }
@@ -247,14 +273,17 @@ function parseTs(s) {
 function ymKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 
 (async function main() {
-    const data = await loadMetadata();
-    if (!data) return;
-    const papers = Object.values(data);
+    const loaded = await loadStatsSource();
+    if (!loaded) return;
+    const papers = loaded.papers;
     if (!papers.length) {
-        statusEl.textContent = '当前 metadata.json 中尚未有任何论文。';
+        statusEl.textContent = `当前 ${loaded.source} 中尚未有任何论文。`;
         return;
     }
-    statusEl.textContent = `✅ 已加载 ${papers.length} 篇论文`;
+    const sourceSuffix = loaded.generatedAt
+        ? `（来源：${loaded.source}，更新于 ${loaded.generatedAt}）`
+        : `（来源：${loaded.source}）`;
+    statusEl.textContent = `✅ 已加载 ${papers.length} 篇论文${sourceSuffix}`;
     statusEl.style.color = 'var(--muted)';
 
     renderKpi(papers);

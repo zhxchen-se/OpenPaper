@@ -3,6 +3,7 @@ import os
 import sys
 import urllib.parse
 
+from backend.metadata import atomic_write_metadata
 from backend.utils import configure_stdio
 
 PDF_DIR = "papers"
@@ -59,8 +60,7 @@ def main() -> None:
     for key in lost_keys:
         print(f"unmatched metadata entry: {key}")
 
-    with open(METADATA_FILE, "w", encoding="utf-8") as file_obj:
-        json.dump(new_metadata, file_obj, indent=2, ensure_ascii=False)
+    atomic_write_metadata(new_metadata, METADATA_FILE)
 
     print("======================")
     print(f"repaired entries: {repaired}")

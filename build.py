@@ -5,6 +5,7 @@ import sys
 import urllib.parse
 from datetime import datetime
 
+from backend.metadata import atomic_write_metadata
 from backend.utils import configure_stdio
 
 PDF_DIR = "papers"
@@ -202,8 +203,7 @@ def main() -> None:
         print(f"remove stale metadata for missing pdf: {key}")
         metadata.pop(key, None)
 
-    with open(METADATA_FILE, "w", encoding="utf-8") as file_obj:
-        json.dump(metadata, file_obj, indent=2, ensure_ascii=False)
+    atomic_write_metadata(metadata, METADATA_FILE)
 
     if not os.path.exists(TEMPLATE_HTML):
         raise FileNotFoundError(f"{TEMPLATE_HTML} not found")
