@@ -19,7 +19,10 @@ from backend.metadata import (
     delete_paper, list_recycle_bin, restore_paper, purge_paper, purge_all_papers,
     save_metadata, update_paper, load_metadata, atomic_write_metadata,
 )
-from backend.quick_reading import generate_speedread, test_speedread_config
+from backend.quick_reading import (
+    generate_speedread, test_speedread_config, get_speedread_cache,
+    list_speedread_cache, write_speedread_cache, rebuild_speedread_index,
+)
 from backend.watcher import PDFHandler
 
 WORKSPACE_ROOT = resolve_workspace_root()
@@ -33,6 +36,9 @@ STATS_FILE = os.path.join(RUNTIME_DATA_DIR, "stats.data.json")
 LEGACY_METADATA_FILE = os.path.join(WORKSPACE_ROOT, "metadata.json")
 LEGACY_STATS_FILE = os.path.join(WORKSPACE_ROOT, "stats.data.json")
 METADATA_DEMO_FILE = os.path.join(WORKSPACE_ROOT, "metadata.demo.json")
+QUICK_READING_CACHE_DIR = os.path.join(PDF_DIR, ".quick_reading_cache")
+LEGACY_SPEEDREAD_CACHE_DIR = os.path.join(WORKSPACE_ROOT, ".speedread_cache")
+LEGACY_QUICK_READING_CACHE_DIR = os.path.join(PDF_DIR, ".cache", ".quick_reading_cache")
 
 def _move_if_missing(src: str, dst: str) -> None:
     if os.path.exists(dst) or not os.path.exists(src):
@@ -43,6 +49,73 @@ def _move_if_missing(src: str, dst: str) -> None:
         shutil.copy2(src, dst)
 
 
+def _merge_tree(src: str, dst: str) -> None:
+    if not os.path.isdir(src):
+        return
+    if os.path.abspath(src) == os.path.abspath(dst):
+        return
+    os.makedirs(dst, exist_ok=True)
+    for name in os.listdir(src):
+        src_path = os.path.join(src, name)
+        dst_path = os.path.join(dst, name)
+        if os.path.isdir(src_path):
+            _merge_tree(src_path, dst_path)
+            try:
+                os.rmdir(src_path)
+            except OSError:
+                pass
+            continue
+        if os.path.exists(dst_path):
+            try:
+                os.remove(src_path)
+            except OSError:
+                pass
+            continue
+        shutil.move(src_path, dst_path)
+    try:
+        os.rmdir(src)
+    except OSError:
+        pass
+
+
+def _normalize_quick_reading_image_path(image_path: str) -> str:
+    if not isinstance(image_path, str):
+        return image_path
+    normalized = image_path.replace("\\", "/")
+    prefixes = (
+        ".speedread_cache/",
+        "papers/.cache/.quick_reading_cache/",
+    )
+    for prefix in prefixes:
+        if normalized.startswith(prefix):
+            suffix = normalized[len(prefix):].lstrip("/")
+            return f"papers/.quick_reading_cache/{suffix}" if suffix else "papers/.quick_reading_cache"
+    return normalized
+
+
+def _rewrite_quick_reading_paths(speed_read: dict) -> bool:
+    changed = False
+
+    def rewrite_assets(items) -> None:
+        nonlocal changed
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            image_path = item.get("image_path")
+            normalized = _normalize_quick_reading_image_path(image_path)
+            if normalized != image_path:
+                item["image_path"] = normalized
+                changed = True
+
+    rewrite_assets(speed_read.get("candidate_pages"))
+    content = speed_read.get("content")
+    if isinstance(content, dict):
+        rewrite_assets(content.get("core_figures"))
+    return changed
+
+
 def _bootstrap_runtime_data_files() -> None:
     os.makedirs(RUNTIME_DATA_DIR, exist_ok=True)
     _move_if_missing(LEGACY_METADATA_FILE, METADATA_FILE)
@@ -51,10 +124,52 @@ def _bootstrap_runtime_data_files() -> None:
         shutil.copy2(METADATA_DEMO_FILE, METADATA_FILE)
 
 
+def _bootstrap_quick_reading_cache() -> None:
+    _merge_tree(LEGACY_SPEEDREAD_CACHE_DIR, QUICK_READING_CACHE_DIR)
+    _merge_tree(LEGACY_QUICK_READING_CACHE_DIR, QUICK_READING_CACHE_DIR)
+
+    try:
+        metadata = load_metadata(METADATA_FILE)
+    except Exception as exc:
+        log(f"读取速读缓存元数据失败: {exc}")
+        return
+
+    changed = False
+    for file_key, entry in metadata.items():
+        if not isinstance(entry, dict):
+            continue
+        if "speed_read" not in entry:
+            continue
+        speed_read = entry.pop("speed_read", None)
+        if isinstance(speed_read, dict):
+            _rewrite_quick_reading_paths(speed_read)
+            try:
+                write_speedread_cache(file_key, speed_read, WORKSPACE_ROOT, QUICK_READING_CACHE_DIR)
+            except Exception as exc:
+                log(f"迁移速读缓存失败 {file_key}: {exc}")
+        changed = True
+
+    if not changed:
+        try:
+            rebuild_speedread_index(list(metadata), WORKSPACE_ROOT, QUICK_READING_CACHE_DIR)
+        except Exception as exc:
+            log(f"重建速读缓存索引失败: {exc}")
+        return
+
+    try:
+        atomic_write_metadata(metadata, METADATA_FILE)
+    except Exception as exc:
+        log(f"写回速读缓存元数据失败: {exc}")
+    try:
+        rebuild_speedread_index(list(metadata), WORKSPACE_ROOT, QUICK_READING_CACHE_DIR)
+    except Exception as exc:
+        log(f"重建速读缓存索引失败: {exc}")
+
+
 _bootstrap_runtime_data_files()
+_bootstrap_quick_reading_cache()
 
 RECYCLE_DIR = os.path.join(WORKSPACE_ROOT, ".recycle_bin")
-SPEEDREAD_CACHE_DIR = os.path.join(WORKSPACE_ROOT, ".speedread_cache")
 LOG_FILE = os.path.join(WORKSPACE_ROOT, "watchdog.log")
 LEGACY_LOG_FILE = os.path.join(WORKSPACE_ROOT, "waatchdog.log")
 
@@ -152,6 +267,9 @@ class PaperRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/recycle-list":
             self.handle_recycle_list()
             return
+        if parsed.path == "/api/speedread-cache":
+            self.handle_speedread_cache(parse_qs(parsed.query))
+            return
         if parsed.path == "/api/ping":
             self._send_json(200, {"ok": True, "service": "watchdog"})
             return
@@ -190,6 +308,9 @@ class PaperRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/generate-speedread":
             self.handle_generate_speedread(payload)
+            return
+        if parsed.path == "/api/list-speedread-cache":
+            self.handle_list_speedread_cache(payload)
             return
         if parsed.path == "/api/test-speedread-config":
             self.handle_test_speedread_config(payload)
@@ -234,13 +355,23 @@ class PaperRequestHandler(SimpleHTTPRequestHandler):
 
     # ------- paper speed-read -------
     # ------- paper speed-read -------
+    def handle_speedread_cache(self, query):
+        file_key = (query.get("file_key") or [""])[0].strip()
+        result = get_speedread_cache(file_key, WORKSPACE_ROOT, QUICK_READING_CACHE_DIR)
+        self._send_json(result.status, result.payload)
+
+    def handle_list_speedread_cache(self, payload):
+        file_keys = payload.get("file_keys") or []
+        result = list_speedread_cache(file_keys, WORKSPACE_ROOT, QUICK_READING_CACHE_DIR)
+        self._send_json(result.status, result.payload)
+
     def handle_generate_speedread(self, payload):
         file_key = (payload.get("file_key") or "").strip()
         api_config = payload.get("apiConfig") or {}
         force = bool(payload.get("force"))
         result = generate_speedread(
             file_key, api_config, force,
-            WORKSPACE_ROOT, METADATA_FILE, SPEEDREAD_CACHE_DIR,
+            WORKSPACE_ROOT, METADATA_FILE, QUICK_READING_CACHE_DIR,
             SPEEDREAD_MAX_IMAGE_PAGES, SPEEDREAD_IMAGE_WIDTH, SPEEDREAD_MAX_SOURCE_CHARS,
         )
         self._send_json(result.status, result.payload)

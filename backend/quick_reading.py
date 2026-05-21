@@ -21,9 +21,142 @@ from urllib.parse import unquote
 from urllib import request, error
 
 from backend.utils import log, safe_rel
-from backend.metadata import load_metadata, atomic_write_metadata
+from backend.metadata import load_metadata
 
 _Result = namedtuple("_Result", ["status", "payload"])
+
+
+def _paper_hash(file_key: str) -> str:
+    return hashlib.sha1(file_key.encode("utf-8")).hexdigest()[:16]
+
+
+def _cache_root(workspace_root: str, quick_reading_cache_dir: str) -> str:
+    if os.path.isabs(quick_reading_cache_dir):
+        return quick_reading_cache_dir
+    return os.path.join(workspace_root, quick_reading_cache_dir)
+
+
+def _paper_cache_dir(file_key: str, workspace_root: str, quick_reading_cache_dir: str) -> str:
+    return os.path.join(_cache_root(workspace_root, quick_reading_cache_dir), _paper_hash(file_key))
+
+
+def _speedread_cache_file(file_key: str, workspace_root: str, quick_reading_cache_dir: str) -> str:
+    return os.path.join(_paper_cache_dir(file_key, workspace_root, quick_reading_cache_dir), "speed_read.json")
+
+
+def _speedread_cache_relpath(file_key: str, workspace_root: str, quick_reading_cache_dir: str) -> str:
+    return os.path.relpath(_speedread_cache_file(file_key, workspace_root, quick_reading_cache_dir), workspace_root).replace(os.sep, "/")
+
+
+def _speedread_index_file(workspace_root: str, quick_reading_cache_dir: str) -> str:
+    return os.path.join(_cache_root(workspace_root, quick_reading_cache_dir), "index.json")
+
+
+def _speedread_index_item(file_key: str, speed_read: dict, workspace_root: str, quick_reading_cache_dir: str) -> dict:
+    return {
+        "path": _speedread_cache_relpath(file_key, workspace_root, quick_reading_cache_dir),
+        "status": speed_read.get("status", "success"),
+        "generated_at": speed_read.get("generated_at", ""),
+        "updated_at": speed_read.get("updated_at", ""),
+        "model": speed_read.get("model", ""),
+        "request_mode": speed_read.get("request_mode", ""),
+    }
+
+
+def _write_speedread_index(items: dict, workspace_root: str, quick_reading_cache_dir: str) -> None:
+    index_file = _speedread_index_file(workspace_root, quick_reading_cache_dir)
+    os.makedirs(os.path.dirname(index_file), exist_ok=True)
+    payload = {
+        "version": 1,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "items": items,
+    }
+    tmp_file = index_file + ".tmp"
+    with open(tmp_file, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_file, index_file)
+
+
+def _update_speedread_index(file_key: str, speed_read: dict, workspace_root: str, quick_reading_cache_dir: str) -> None:
+    index_file = _speedread_index_file(workspace_root, quick_reading_cache_dir)
+    try:
+        with open(index_file, "r", encoding="utf-8") as f:
+            index = json.load(f)
+        items = index.get("items") if isinstance(index, dict) else {}
+        if not isinstance(items, dict):
+            items = {}
+    except Exception:
+        items = {}
+    items[file_key] = _speedread_index_item(file_key, speed_read, workspace_root, quick_reading_cache_dir)
+    _write_speedread_index(items, workspace_root, quick_reading_cache_dir)
+
+
+def rebuild_speedread_index(file_keys: list, workspace_root: str, quick_reading_cache_dir: str) -> None:
+    items = {}
+    for file_key in file_keys:
+        if not isinstance(file_key, str) or not file_key:
+            continue
+        cache_file = _speedread_cache_file(file_key, workspace_root, quick_reading_cache_dir)
+        if not os.path.isfile(cache_file):
+            continue
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                speed_read = json.load(f)
+        except Exception:
+            speed_read = {}
+        if not isinstance(speed_read, dict):
+            speed_read = {}
+        items[file_key] = _speedread_index_item(file_key, speed_read, workspace_root, quick_reading_cache_dir)
+    _write_speedread_index(items, workspace_root, quick_reading_cache_dir)
+
+
+def load_speedread_cache(file_key: str, workspace_root: str, quick_reading_cache_dir: str) -> dict:
+    cache_file = _speedread_cache_file(file_key, workspace_root, quick_reading_cache_dir)
+    if not os.path.isfile(cache_file):
+        return {}
+    with open(cache_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, dict) else {}
+
+
+def write_speedread_cache(file_key: str, speed_read: dict, workspace_root: str, quick_reading_cache_dir: str) -> str:
+    cache_file = _speedread_cache_file(file_key, workspace_root, quick_reading_cache_dir)
+    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    tmp_file = cache_file + ".tmp"
+    with open(tmp_file, "w", encoding="utf-8") as f:
+        json.dump(speed_read, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_file, cache_file)
+    _update_speedread_index(file_key, speed_read, workspace_root, quick_reading_cache_dir)
+    return os.path.relpath(cache_file, workspace_root).replace(os.sep, "/")
+
+
+def get_speedread_cache(file_key: str, workspace_root: str, quick_reading_cache_dir: str) -> _Result:
+    if not file_key:
+        return _Result(400, {"ok": False, "error": "缺少 file_key"})
+    try:
+        speed_read = load_speedread_cache(file_key, workspace_root, quick_reading_cache_dir)
+    except Exception as exc:
+        return _Result(500, {"ok": False, "error": f"读取速读缓存失败: {exc}"})
+    if not speed_read:
+        return _Result(404, {"ok": False, "error": "速读缓存不存在"})
+    return _Result(200, {"ok": True, "speed_read": speed_read})
+
+
+def list_speedread_cache(file_keys: list, workspace_root: str, quick_reading_cache_dir: str) -> _Result:
+    if not isinstance(file_keys, list):
+        return _Result(400, {"ok": False, "error": "file_keys 格式不正确"})
+    items = {}
+    for file_key in file_keys:
+        if not isinstance(file_key, str) or not file_key:
+            continue
+        try:
+            speed_read = load_speedread_cache(file_key, workspace_root, quick_reading_cache_dir)
+        except Exception as exc:
+            log(f"读取速读缓存失败 {file_key}: {exc}")
+            continue
+        if speed_read:
+            items[file_key] = speed_read
+    return _Result(200, {"ok": True, "speed_reads": items})
 
 
 # ---------------------------------------------------------------------------
@@ -213,9 +346,8 @@ def _select_speedread_pages(page_texts, page_count, max_image_pages):
 # page rendering
 # ---------------------------------------------------------------------------
 
-def _render_speedread_page_image(abs_pdf, file_key, page_no, workspace_root, speedread_cache_dir, image_width):
-    paper_hash = hashlib.sha1(file_key.encode("utf-8")).hexdigest()[:16]
-    cache_dir = os.path.join(workspace_root, speedread_cache_dir, paper_hash)
+def _render_speedread_page_image(abs_pdf, file_key, page_no, workspace_root, quick_reading_cache_dir, image_width):
+    cache_dir = _paper_cache_dir(file_key, workspace_root, quick_reading_cache_dir)
     os.makedirs(cache_dir, exist_ok=True)
 
     base_name = f"page_{page_no:03d}"
@@ -623,7 +755,7 @@ def generate_speedread(
     force: bool,
     workspace_root: str,
     metadata_file: str,
-    speedread_cache_dir: str,
+    quick_reading_cache_dir: str,
     max_image_pages: int = 4,
     image_width: int = 1400,
     max_source_chars: int = 24000,
@@ -648,7 +780,10 @@ def generate_speedread(
     if not abs_pdf:
         return _Result(404, {"ok": False, "error": f"PDF 不存在: {rel_disk}"})
 
-    existing = entry.get("speed_read") if isinstance(entry.get("speed_read"), dict) else {}
+    try:
+        existing = load_speedread_cache(file_key, workspace_root, quick_reading_cache_dir)
+    except Exception:
+        existing = {}
     if existing.get("status") == "success" and not force:
         return _Result(200, {"ok": True, "cached": True, "speed_read": existing})
 
@@ -661,10 +796,7 @@ def generate_speedread(
         "error": "",
     }
     try:
-        current = metadata.get(file_key) or {}
-        current["speed_read"] = generating_state
-        metadata[file_key] = current
-        atomic_write_metadata(metadata, metadata_file)
+        write_speedread_cache(file_key, generating_state, workspace_root, quick_reading_cache_dir)
     except Exception as exc:
         return _Result(500, {"ok": False, "error": f"写入生成状态失败: {exc}"})
 
@@ -681,7 +813,7 @@ def generate_speedread(
             try:
                 enriched["image_path"] = _render_speedread_page_image(
                     abs_pdf, file_key, int(item.get("page") or 0),
-                    workspace_root, speedread_cache_dir, image_width,
+                    workspace_root, quick_reading_cache_dir, image_width,
                 )
             except Exception as img_exc:
                 log(f"速读渲染第 {item.get('page')} 页失败: {img_exc}")
@@ -713,11 +845,7 @@ def generate_speedread(
             "content": normalized,
         }
 
-        metadata = load_metadata(metadata_file)
-        current = metadata.get(file_key) or {}
-        current["speed_read"] = success_state
-        metadata[file_key] = current
-        atomic_write_metadata(metadata, metadata_file)
+        write_speedread_cache(file_key, success_state, workspace_root, quick_reading_cache_dir)
         log(f"速读生成完成: {file_key}")
         return _Result(200, {"ok": True, "speed_read": success_state})
     except Exception as exc:
@@ -729,11 +857,7 @@ def generate_speedread(
             "error": _clean_page_text(str(exc), 600),
         }
         try:
-            metadata = load_metadata(metadata_file)
-            current = metadata.get(file_key) or {}
-            current["speed_read"] = error_state
-            metadata[file_key] = current
-            atomic_write_metadata(metadata, metadata_file)
+            write_speedread_cache(file_key, error_state, workspace_root, quick_reading_cache_dir)
         except Exception as write_exc:
             log(f"写入速读错误状态失败: {write_exc}")
         log(f"速读生成失败: {file_key} - {exc}")
