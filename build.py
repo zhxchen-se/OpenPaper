@@ -6,10 +6,12 @@ import urllib.parse
 from datetime import datetime
 
 from backend.metadata import atomic_write_metadata
+from backend.quick_reading import rebuild_speedread_index
 from backend.utils import configure_stdio
 
 PDF_DIR = "papers"
 METADATA_FILE = os.path.join(PDF_DIR, "metadata.json")
+QUICK_READING_CACHE_DIR = os.path.join(PDF_DIR, ".quick_reading_cache")
 OUTPUT_HTML = "index.html"
 TEMPLATE_HTML = "template.html"
 
@@ -187,7 +189,6 @@ def main() -> None:
             "read": info.get("read", False),
             "bib": info.get("bib", ""),
             "notes": info.get("notes", ""),
-            "speed_read": info.get("speed_read"),
             "added_at": added_at,
         }
 
@@ -204,6 +205,7 @@ def main() -> None:
         metadata.pop(key, None)
 
     atomic_write_metadata(metadata, METADATA_FILE)
+    rebuild_speedread_index(list(metadata), os.getcwd(), QUICK_READING_CACHE_DIR)
 
     if not os.path.exists(TEMPLATE_HTML):
         raise FileNotFoundError(f"{TEMPLATE_HTML} not found")

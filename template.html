@@ -458,6 +458,22 @@ const speedReadRegenerateBtn = document.getElementById('speedread-regenerate');
 let settingsModalApi = null;
 let activeSpeedReadKey = null;
 const speedReadGeneratingKeys = new Set();
+let speedReadCacheIndex = {};
+
+function stripSpeedReadForMetadata(entry) {
+    const copy = { ...(entry || {}) };
+    delete copy.speed_read;
+    return copy;
+}
+
+function persistableMetadataMap() {
+    const clean = {};
+    Object.entries(metadataMap || {}).forEach(([key, value]) => {
+        clean[key] = stripSpeedReadForMetadata(value);
+        clean[key].file_key = key;
+    });
+    return clean;
+}
 
 // ===== UI 状态（带 localStorage 持久化） =====
 const UI_STATE_KEY = 'papers-visualizer-ui-state-v1';
@@ -747,12 +763,85 @@ function updatePaperSpeedRead(key, speedRead) {
     const paper = papers.find(item => item.file_key === key);
     if (!paper) return;
     paper.speed_read = speedRead;
-    metadataMap[key] = { ...(metadataMap[key] || {}), ...paper, speed_read: speedRead };
-    metadataMap[key].file_key = key;
     replacePaperCardByKey(key);
     if (activeSpeedReadKey === key) {
         renderSpeedReadModal(paper);
     }
+}
+
+async function readSpeedReadCacheItem(key, item) {
+    if (!key || !item || !item.path) return null;
+    try {
+        const response = await fetch(`${item.path}?ts=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) return null;
+        const speedRead = await response.json();
+        if (!speedRead || !speedRead.status) return null;
+        updatePaperSpeedRead(key, speedRead);
+        return speedRead;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function loadSpeedReadCacheIndex() {
+    try {
+        const response = await fetch(`papers/.quick_reading_cache/index.json?ts=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        speedReadCacheIndex = (data && typeof data.items === 'object' && data.items) ? data.items : {};
+    } catch (_) {
+        speedReadCacheIndex = {};
+    }
+    return speedReadCacheIndex;
+}
+
+async function fetchSpeedReadCache(key) {
+    if (!key) return null;
+    let cacheItem = speedReadCacheIndex[key];
+    if (!cacheItem) {
+        await loadSpeedReadCacheIndex();
+        cacheItem = speedReadCacheIndex[key];
+    }
+    const cachedSpeedRead = await readSpeedReadCacheItem(key, cacheItem);
+    if (cachedSpeedRead) return cachedSpeedRead;
+    if (!backendAvailable) return null;
+    try {
+        const response = await fetch('/api/speedread-cache?file_key=' + encodeURIComponent(key), { cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.ok && data.speed_read) {
+            updatePaperSpeedRead(key, data.speed_read);
+            return data.speed_read;
+        }
+    } catch (_) {}
+    return null;
+}
+
+async function loadSpeedReadCacheStates() {
+    if (!papers.length) return;
+    const indexItems = await loadSpeedReadCacheIndex();
+    const loadedSpeedReads = await Promise.all(
+        Object.entries(indexItems).map(([key, item]) => readSpeedReadCacheItem(key, item))
+    );
+    const loadedFromIndex = loadedSpeedReads.some(Boolean);
+    if (loadedFromIndex) {
+        render(getFilteredList(searchInput.value));
+        return;
+    }
+    if (!backendAvailable) return;
+    try {
+        const response = await fetch('/api/list-speedread-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_keys: papers.map(item => item.file_key) }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok || !data.speed_reads) return;
+        Object.entries(data.speed_reads).forEach(([key, speedRead]) => {
+            const paper = papers.find(item => item.file_key === key);
+            if (paper) paper.speed_read = speedRead;
+        });
+        render(getFilteredList(searchInput.value));
+    } catch (_) {}
 }
 
 function getSpeedReadConfigForRequest() {
@@ -1275,8 +1364,9 @@ function createPaperCard(p, opts = {}) {
 async function handleSpeedReadClick(key) {
     const paper = papers.find(item => item.file_key === key);
     if (!paper) return;
-    const speedReadUi = getSpeedReadUiState(paper);
+    let speedReadUi = getSpeedReadUiState(paper);
     if (speedReadUi.status === 'success') {
+        if (!paper.speed_read || !paper.speed_read.content) await fetchSpeedReadCache(key);
         openSpeedReadModal(key);
         return;
     }
@@ -1284,6 +1374,12 @@ async function handleSpeedReadClick(key) {
         openSpeedReadModal(key);
         return;
     }
+    const cachedSpeedRead = await fetchSpeedReadCache(key);
+    if (cachedSpeedRead && cachedSpeedRead.status === 'success') {
+        openSpeedReadModal(key);
+        return;
+    }
+    speedReadUi = getSpeedReadUiState(paper);
     await generateSpeedRead(key, {
         force: speedReadUi.status === 'error',
         openAfterSuccess: true,
@@ -1330,6 +1426,7 @@ async function generateSpeedRead(key, { force = false, openAfterSuccess = true }
         if (!response.ok || !responseData.ok) {
             throw new Error(responseData.error || `HTTP ${response.status}`);
         }
+        speedReadGeneratingKeys.delete(key);
         updatePaperSpeedRead(key, responseData.speed_read || {
             status: 'success',
             updated_at: new Date().toISOString(),
@@ -1346,6 +1443,7 @@ async function generateSpeedRead(key, { force = false, openAfterSuccess = true }
                 updated_at: new Date().toISOString(),
                 error: err.message || String(err),
             };
+        speedReadGeneratingKeys.delete(key);
         updatePaperSpeedRead(key, fallbackState);
         showStatus(`速读生成失败：${fallbackState.error || err.message || err}`, true);
         openSpeedReadModal(key);
@@ -1364,12 +1462,18 @@ function closeSpeedReadModal() {
     speedReadModal.classList.remove('open');
 }
 
-function openSpeedReadModal(key) {
+async function openSpeedReadModal(key) {
     const paper = papers.find(item => item.file_key === key);
     if (!paper) return;
     activeSpeedReadKey = key;
     speedReadModal.classList.add('open');
     renderSpeedReadModal(paper);
+    if (paper.speed_read && paper.speed_read.status === 'success' && !paper.speed_read.content) {
+        speedReadBody.innerHTML = '<div class="speedread-loading">正在读取本地速读缓存...</div>';
+        await fetchSpeedReadCache(key);
+        const latestPaper = papers.find(item => item.file_key === key);
+        if (activeSpeedReadKey === key && latestPaper) renderSpeedReadModal(latestPaper);
+    }
 }
 
 function renderSpeedReadModal(paper) {
@@ -1520,7 +1624,7 @@ async function saveEdit(btn, key) {
     p.tags = parent.querySelector('.edit-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
     p.notes = parent.querySelector('.edit-notes').value;
     p.bib = parent.querySelector('.edit-bib').value;
-    metadataMap[key] = { ...p };
+    metadataMap[key] = stripSpeedReadForMetadata(p);
     metadataMap[key].file_key = key;
     refreshVenueFilterOptions();
     const newTags = (p.tags || []).slice().sort().join('|');
@@ -1587,20 +1691,24 @@ function arrayToMetadataMap(list) {
     list.forEach((item, index) => {
         const rawKey = item.file_key || item.pdf || `paper_${index}`;
         const key = String(rawKey).toLowerCase();
-        map[key] = { ...item, file_key: key };
+        map[key] = stripSpeedReadForMetadata({ ...item, file_key: key });
     });
     return map;
 }
 
 function applyMetadataMap(map) {
-    metadataMap = map || {};
-    papers = Object.entries(metadataMap).map(([key, value]) => ({
+    metadataMap = {};
+    papers = Object.entries(map || {}).map(([key, value]) => {
+        const clean = stripSpeedReadForMetadata(value);
+        metadataMap[key] = { ...clean, file_key: key };
+        return {
         file_key: key,
-        ...value,
-        tags: (value.tags || []).filter(Boolean),
-        venue: (value.venue || '').trim(),
-        read: !!value.read
-    }));
+        ...clean,
+        tags: (clean.tags || []).filter(Boolean),
+        venue: (clean.venue || '').trim(),
+        read: !!clean.read
+    };
+    });
     refreshVenueFilterOptions();
     refreshTagFilterList();
     render(getFilteredList(searchInput.value));
@@ -1612,7 +1720,7 @@ async function handleReadToggle(event, key) {
     const p = papers.find(item => item.file_key === key);
     if (!p) return;
     p.read = checked;
-    metadataMap[key] = { ...(metadataMap[key] || {}), ...p, read: checked };
+    metadataMap[key] = stripSpeedReadForMetadata({ ...(metadataMap[key] || {}), ...p, read: checked });
     metadataMap[key].file_key = key;
 
     // 就地更新卡片样式与标签文本，避免整页重渲染导致分组折叠
@@ -1668,10 +1776,12 @@ async function loadMetadataViaFetch({ fallbackToEmbedded = false } = {}) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         applyMetadataMap(data);
+        await loadSpeedReadCacheStates();
         showStatus('已从 papers/metadata.json 加载数据', false);
     } catch (error) {
         if (fallbackToEmbedded && Array.isArray(EMBEDDED_PAPERS) && EMBEDDED_PAPERS.length) {
             applyMetadataMap(arrayToMetadataMap(EMBEDDED_PAPERS));
+            await loadSpeedReadCacheStates();
             showStatus('无法读取 papers/metadata.json，已回退至内置数据；建议使用本地服务器或绑定文件以保持同步', true);
         } else {
             showStatus('无法直接读取 papers/metadata.json，请使用本地服务器或"绑定"按钮手动选择文件', true);
@@ -1703,11 +1813,13 @@ async function loadFromHandle() {
     const text = await file.text();
     const data = JSON.parse(text || '{}');
     applyMetadataMap(data);
+    await loadSpeedReadCacheStates();
     showStatus(`已绑定 ${file.name}，后续保存将自动覆盖`, false);
 }
 
 async function persistMetadata({ auto }) {
-    const payload = JSON.stringify(metadataMap, null, 2);
+    const cleanMetadata = persistableMetadataMap();
+    const payload = JSON.stringify(cleanMetadata, null, 2);
 
     // 优先走本地后端，实现"保存即时生效"
     if (backendAvailable) {
@@ -1715,7 +1827,7 @@ async function persistMetadata({ auto }) {
             const resp = await fetch('/api/save-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: metadataMap }),
+                body: JSON.stringify({ data: cleanMetadata }),
             });
             if (resp.ok) {
                 const j = await resp.json().catch(() => ({}));

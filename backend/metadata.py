@@ -315,6 +315,9 @@ def save_metadata(data: dict, metadata_file: str) -> _Result:
     """Validate and atomically save full metadata.json."""
     if not isinstance(data, dict):
         return _Result(400, {"ok": False, "error": "缺少 data 字段或类型不正确"})
+    for entry in data.values():
+        if isinstance(entry, dict):
+            entry.pop("speed_read", None)
     try:
         atomic_write_metadata(data, metadata_file)
     except Exception as exc:
@@ -340,6 +343,7 @@ def update_paper(
             meta = {}
         current = meta.get(file_key) or {}
         merged = {**current, **fields}
+        merged.pop("speed_read", None)
         merged["file_key"] = file_key
         meta[file_key] = merged
         atomic_write_metadata(meta, metadata_file)
