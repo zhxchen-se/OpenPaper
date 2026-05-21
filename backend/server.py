@@ -55,12 +55,21 @@ _bootstrap_runtime_data_files()
 
 RECYCLE_DIR = os.path.join(WORKSPACE_ROOT, ".recycle_bin")
 SPEEDREAD_CACHE_DIR = os.path.join(WORKSPACE_ROOT, ".speedread_cache")
-LOG_FILE = os.path.join(WORKSPACE_ROOT, "waatchdog.log")
+LOG_FILE = os.path.join(WORKSPACE_ROOT, "watchdog.log")
+LEGACY_LOG_FILE = os.path.join(WORKSPACE_ROOT, "waatchdog.log")
 
 HTTP_PORT = 8000
 SPEEDREAD_MAX_IMAGE_PAGES = 4
 SPEEDREAD_IMAGE_WIDTH = 1400
 SPEEDREAD_MAX_SOURCE_CHARS = 24000
+
+
+def _resolve_log_file() -> str:
+    if os.path.exists(LOG_FILE):
+        return LOG_FILE
+    if os.path.exists(LEGACY_LOG_FILE):
+        return LEGACY_LOG_FILE
+    return LOG_FILE
 
 
 def _bring_explorer_to_front(target_path: str) -> None:
@@ -144,7 +153,7 @@ class PaperRequestHandler(SimpleHTTPRequestHandler):
             self.handle_recycle_list()
             return
         if parsed.path == "/api/ping":
-            self._send_json(200, {"ok": True, "service": "waatchdog"})
+            self._send_json(200, {"ok": True, "service": "watchdog"})
             return
         super().do_GET()
 
@@ -248,11 +257,12 @@ class PaperRequestHandler(SimpleHTTPRequestHandler):
             tail = 500
         tail = max(1, min(tail, 5000))
 
-        if not os.path.exists(LOG_FILE):
-            self._send_json(200, {"ok": True, "path": LOG_FILE, "lines": [], "truncated": False})
+        log_file = _resolve_log_file()
+        if not os.path.exists(log_file):
+            self._send_json(200, {"ok": True, "path": log_file, "lines": [], "truncated": False})
             return
         try:
-            with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                 all_lines = f.readlines()
         except Exception as exc:
             self._send_json(500, {"ok": False, "error": f"读取日志失败: {exc}"})
@@ -261,7 +271,7 @@ class PaperRequestHandler(SimpleHTTPRequestHandler):
         lines = all_lines[-tail:]
         self._send_json(200, {
             "ok": True,
-            "path": LOG_FILE,
+            "path": log_file,
             "total": len(all_lines),
             "returned": len(lines),
             "truncated": truncated,

@@ -17,10 +17,10 @@ If Not oFso.FileExists(sPy) Then
     sPy = "python.exe"
 End If
 
-sLog = sProjectDir & "\waatchdog.log"
+sLog = sProjectDir & "\watchdog.log"
 
 sCmd = "cmd /c cd /d """ & sProjectDir & """ && " & _
        "set ""PYTHONUTF8=1"" && set ""PYTHONIOENCODING=utf-8"" && " & _
-       Q(sPy) & " -m backend.server >> " & Q(sLog) & " 2>&1"
+       Q(sPy) & " -m backend >> " & Q(sLog) & " 2>&1"
 
 oShell.Run sCmd, 0, False

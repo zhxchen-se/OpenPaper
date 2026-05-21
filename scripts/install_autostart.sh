@@ -8,11 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 detect_python() {
-    # Prefer the project .venv, then uv run, then system python3.
-    if command -v uv &>/dev/null && uv run --python python3 -c "" 2>/dev/null; then
-        echo "uv run python"
+    # Prefer a project-local virtualenv, then system python3.
+    if [[ -x "$PROJECT_DIR/.venv/bin/python" ]]; then
+        echo "$PROJECT_DIR/.venv/bin/python"
+    elif [[ -x "$PROJECT_DIR/.venv/bin/python3" ]]; then
+        echo "$PROJECT_DIR/.venv/bin/python3"
     elif command -v python3 &>/dev/null; then
-        echo "python3"
+        command -v python3
     else
         echo "python3"  # best-effort; will fail at runtime if missing
     fi
@@ -35,7 +37,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     <key>ProgramArguments</key>
     <array>
         <string>$PYTHON_CMD</string>
-        <string>$PROJECT_DIR/backend/server.py</string>
+        <string>-m</string>
+        <string>backend</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$PROJECT_DIR</string>
@@ -44,9 +47,9 @@ if [[ "$(uname)" == "Darwin" ]]; then
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>$PROJECT_DIR/waatchdog.log</string>
+    <string>$PROJECT_DIR/watchdog.log</string>
     <key>StandardErrorPath</key>
-    <string>$PROJECT_DIR/waatchdog.log</string>
+    <string>$PROJECT_DIR/watchdog.log</string>
 </dict>
 </plist>
 PLISTEOF
@@ -55,7 +58,7 @@ PLISTEOF
     launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
     echo "launchd plist installed at $PLIST_PATH"
     echo "Service started. Status:"
-    launchctl list com.openpaper.server 2>/dev/null || echo "  (check $PROJECT_DIR/waatchdog.log)"
+    launchctl list com.openpaper.server 2>/dev/null || echo "  (check $PROJECT_DIR/watchdog.log)"
 
 elif pidof systemd &>/dev/null || systemctl --user &>/dev/null 2>&1; then
     SERVICE_DIR="$HOME/.config/systemd/user"
@@ -70,12 +73,12 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$PYTHON_CMD $PROJECT_DIR/backend/server.py
+ExecStart=$PYTHON_CMD -m backend
 WorkingDirectory=$PROJECT_DIR
 Restart=on-failure
 RestartSec=5
-StandardOutput=append:$PROJECT_DIR/waatchdog.log
-StandardError=append:$PROJECT_DIR/waatchdog.log
+StandardOutput=append:$PROJECT_DIR/watchdog.log
+StandardError=append:$PROJECT_DIR/watchdog.log
 
 [Install]
 WantedBy=default.target

@@ -10,7 +10,7 @@ foreach ($TaskName in $TaskNames) {
     if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
         Stop-ScheduledTask -TaskName $TaskName
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-        Write-Host "✅ 已移除任务：$TaskName"
+        Write-Host "Unregister-ScheduledTask $TaskName"
     }
 }
 
@@ -20,7 +20,7 @@ foreach ($c in $conns) {
         $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
         if ($p -and ($p.ProcessName -match 'python')) {
             Stop-Process -Id $p.Id -Force
-            Write-Host "🛑 已结束进程 $($p.ProcessName) (PID=$($p.Id))"
+            Write-Host "Stop-Process $($p.ProcessName) (PID=$($p.Id))"
         }
     } catch {}
 }

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Register backend/server.py as a Windows Scheduled Task that starts at logon.
+    Register OpenPaper as a Windows Scheduled Task that starts at logon.
 
 .USAGE
     powershell -ExecutionPolicy Bypass -File .\scripts\install_autostart.ps1
@@ -15,7 +15,7 @@ $ProjectDir = Split-Path $ScriptDir -Parent
 $VbsPath = Join-Path $ScriptDir 'start_server.vbs'
 
 if (-not (Test-Path $VbsPath)) {
-    $VbsPath = Join-Path $ScriptDir 'start_waatchdog.vbs'
+    $VbsPath = Join-Path $ScriptDir 'start_watchdog.vbs'
 }
 if (-not (Test-Path $VbsPath)) {
     throw "Launcher script not found: $VbsPath"
@@ -54,7 +54,7 @@ Register-ScheduledTask `
     -Settings $Settings `
     -User $FullUser `
     -RunLevel Limited `
-    -Description 'Auto-start backend/server.py (PDF watcher + HTTP server) at user logon.' | Out-Null
+    -Description 'Auto-start OpenPaper (PDF watcher + HTTP server) at user logon.' | Out-Null
 
 Write-Host "Registered scheduled task: $TaskName"
 Write-Host "  Trigger: user logon"
@@ -65,7 +65,7 @@ Write-Host "Starting the task once now so you can verify http://127.0.0.1:8000"
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 2
 
-$LogPath = Join-Path $ProjectDir 'waatchdog.log'
+$LogPath = Join-Path $ProjectDir 'watchdog.log'
 $Listening = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
 if ($Listening) {
     Write-Host "Service is listening on http://127.0.0.1:8000"
