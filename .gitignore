@@ -1,11 +1,9 @@
-# papers directory - local only (except demo)
-papers/**
-!papers/demo/
-!papers/demo/**
+# # papers directory - local only (except demo)
+# papers/**
 
-# runtime data synced with papers/; metadata.demo.json remains the tracked template
-papers/metadata.json
-papers/stats.data.json
+# # runtime data synced with papers/; metadata.demo.json remains the tracked template
+# papers/metadata.json
+# papers/stats.data.json
 
 # Python
 __pycache__/

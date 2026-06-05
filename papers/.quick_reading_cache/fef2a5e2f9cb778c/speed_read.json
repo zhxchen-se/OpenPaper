@@ -1,0 +1,81 @@
+{
+  "status": "success",
+  "generated_at": "2026-06-04T17:15:45",
+  "updated_at": "2026-06-04T17:17:34",
+  "model": "deepseek-ai/DeepSeek-V4-Pro",
+  "api_base_url": "https://api.siliconflow.cn/v1/chat/completions",
+  "request_mode": "text-only",
+  "page_count": 12,
+  "candidate_pages": [
+    {
+      "page": 4,
+      "reason": "方法总览图",
+      "image_path": "papers/.quick_reading_cache/fef2a5e2f9cb778c/page_004.png"
+    },
+    {
+      "page": 5,
+      "reason": "核心方法页",
+      "image_path": "papers/.quick_reading_cache/fef2a5e2f9cb778c/page_005.png"
+    },
+    {
+      "page": 6,
+      "reason": "分析或消融页",
+      "image_path": "papers/.quick_reading_cache/fef2a5e2f9cb778c/page_006.png"
+    },
+    {
+      "page": 8,
+      "reason": "实验结果页",
+      "image_path": "papers/.quick_reading_cache/fef2a5e2f9cb778c/page_008.png"
+    }
+  ],
+  "content": {
+    "one_sentence": "本文首次系统评估了大型语言模型在代码生成中的编程语言混淆现象，发现其普遍存在且呈现系统性模式，显式语言关键词可有效缓解，而模型量化会加剧混淆。",
+    "quick_takeaways": [
+      "编程语言混淆（PLC）在10个主流LLM中普遍存在，部分代码专用模型混淆率反而更高。",
+      "混淆非随机噪声，呈现系统性模式：强烈默认Python，并在语法相似语言对（如C#/Java）间迁移。",
+      "显式语言关键词是当前最有效的缓解手段，自然语言指令对模型行为影响有限。",
+      "模型量化虽为部署必需，但会显著放大PLC并降低复杂任务中的语法稳定性。"
+    ],
+    "problem_and_motivation": "LLM在代码生成与翻译任务中取得先进性能，但存在一个被忽视的关键失败模式：编程语言混淆（PLC），即模型无视显式指令生成非目标语言的代码。随着AI生成代码进入生产环境，可靠性问题凸显，现有错误分类体系未将语言混淆作为独立类别，缺乏系统性的量化与分析。本文旨在填补这一空白，揭示PLC的普遍性、模式与成因，并探索缓解策略。",
+    "method_overview": "论文构建了一个包含代码生成与代码翻译的双流评估框架，在6个多语言数据集上测试10个LLM。通过集成语言检测工具（Highlight.js、Guesslang、Philomath-1209等）与Tree-sitter解析，定义语言混淆通过率（LCPR）、代码解析通过率（CPPR）和主导迁移率（DMR）三个指标，系统量化PLC并分析混淆模式。",
+    "method_steps": [
+      "在LiveCodeBench、BabelCode变体、HumanEval-XL、McEval等数据集上，对10个通用与代码专用LLM进行代码生成和翻译推理，使用贪婪解码（T=0）。",
+      "采用加权共识集成方法（优先Philomath-1209）识别生成代码的编程语言，整体准确率达98.2%。",
+      "利用Tree-sitter解析器评估代码在检测语言下的语法正确性，计算LCPR、CPPR和DMR。",
+      "通过对比不同指令语言、模型量化状态下的指标，结合迁移模式可视化，分析PLC的系统性特征与影响因素。"
+    ],
+    "core_figures": [
+      {
+        "page": 6,
+        "title": "图2：BabelCode数据集上的编程语言混淆迁移模式",
+        "what_to_look": "观察每个子图中从目标语言（外圈）向实际生成语言（内圈）的流向与宽度，重点关注Python、Java、C#、JavaScript等节点的汇聚与发散。",
+        "what_it_proves": "混淆具有高度系统性：Python是普遍吸引子，C#与Java等语法相似语言对之间存在双向迁移，证明模型依赖训练数据中的统计偏好而非目标导向推理。",
+        "why_important": "该图直观揭示了PLC的内在规律，是理解模型为何“固执”地选择错误语言的关键证据，为设计针对性缓解策略提供了依据。",
+        "image_path": "papers/.quick_reading_cache/fef2a5e2f9cb778c/page_006.png",
+        "reason": "分析或消融页"
+      },
+      {
+        "page": 8,
+        "title": "表4：HumanEval-XL上使用显式语言关键词后的语言混淆通过率",
+        "what_to_look": "对比English与非English指令行中各模型的LCPR，注意非英语指令下某些模型（如LLaMA-3.1-8B）的下降幅度。",
+        "what_it_proves": "显式语言关键词大幅提升了语言忠实度，英语指令下多数模型接近100% LCPR；但自然语言指令的影响有限，非英语指令仍可能导致混淆，说明语言约束的明确性比指令语言本身更重要。",
+        "why_important": "该表直接支撑了“显式语言关键词是最有效缓解措施”的核心结论，并揭示了当前模型对非英语指令的脆弱性，对多语言代码生成系统的设计具有直接指导意义。",
+        "image_path": "papers/.quick_reading_cache/fef2a5e2f9cb778c/page_008.png",
+        "reason": "实验结果页"
+      }
+    ],
+    "experiment_read": "在无显式语言指定的LiveCodeBench上，多数LLM默认生成Python（LCPR最高100%），但Mistral-7B等模型严重混淆（LCPR 66.70%），且即使语言正确，语法正确率也可能下降（如Llama3.1-8B的CPPR仅91.79%）。在BabelCode多语言生成中，PLC普遍存在，代码专用模型Starcoder2-15B-Instruct的LCPR低至74.33%，混淆代码虽可解析但功能正确率显著下滑（FPR降幅达39-76%）。迁移模式显示Python是主导吸引子，C#/Java等相似语言对间迁移频繁。HumanEval-XL结果表明，显式语言关键词使LCPR大幅提升（多数模型>99%），但非英语指令下部分模型仍有混淆。量化模型（如CodeLLama-13B-Instruct-Q）的PLC显著加剧，且语法稳定性下降。",
+    "contributions": [
+      "首次对LLM的编程语言混淆现象进行大规模系统实证研究，覆盖代码生成与翻译任务、多种语言和模型。",
+      "量化了模型量化对PLC的影响，证明这一必要部署步骤会显著放大混淆并损害语法稳定性。",
+      "揭示了导致PLC的关键因素与系统性迁移模式，指出当前LLM设计在跨语言代码生成可靠性上的根本局限。"
+    ],
+    "limitations": [
+      "论文中未明确说明。"
+    ],
+    "deep_read_suggestions": [
+      "建议先精读第III节实验设置（第3-5页），理解评估框架、指标定义与语言检测流程，这是解读所有实验结果的基础。",
+      "随后重点分析第6页的图2与表3，以及第8页的表4，这些图表集中呈现了PLC的核心模式与缓解效果，是支撑论文主要论点的关键证据。"
+    ]
+  }
+}

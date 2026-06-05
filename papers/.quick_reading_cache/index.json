@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "generated_at": "2026-06-04T17:17:34",
+  "items": {
+    "paper/zhang和yang - 2025 - extracting the essence and discarding the dross enhancing code generation with contrastive executio.pdf": {
+      "path": "papers/.quick_reading_cache/032767ba38bf9c56/speed_read.json",
+      "status": "success",
+      "generated_at": "2026-06-04T17:04:06",
+      "updated_at": "2026-06-04T17:06:19",
+      "model": "deepseek-ai/DeepSeek-V4-Pro",
+      "request_mode": "text-only"
+    },
+    "paper/programming language confusion.pdf": {
+      "path": "papers/.quick_reading_cache/fef2a5e2f9cb778c/speed_read.json",
+      "status": "success",
+      "generated_at": "2026-06-04T17:15:45",
+      "updated_at": "2026-06-04T17:17:34",
+      "model": "deepseek-ai/DeepSeek-V4-Pro",
+      "request_mode": "text-only"
+    }
+  }
+}

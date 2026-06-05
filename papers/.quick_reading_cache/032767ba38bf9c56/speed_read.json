@@ -1,0 +1,83 @@
+{
+  "status": "success",
+  "generated_at": "2026-06-04T17:04:06",
+  "updated_at": "2026-06-04T17:06:19",
+  "model": "deepseek-ai/DeepSeek-V4-Pro",
+  "api_base_url": "https://api.siliconflow.cn/v1/chat/completions",
+  "request_mode": "text-only",
+  "page_count": 7,
+  "candidate_pages": [
+    {
+      "page": 1,
+      "reason": "实验结果页",
+      "image_path": "papers/.quick_reading_cache/032767ba38bf9c56/page_001.png"
+    },
+    {
+      "page": 2,
+      "reason": "方法总览图",
+      "image_path": "papers/.quick_reading_cache/032767ba38bf9c56/page_002.png"
+    },
+    {
+      "page": 4,
+      "reason": "分析或消融页",
+      "image_path": "papers/.quick_reading_cache/032767ba38bf9c56/page_004.png"
+    },
+    {
+      "page": 5,
+      "reason": "核心方法页",
+      "image_path": "papers/.quick_reading_cache/032767ba38bf9c56/page_005.png"
+    }
+  ],
+  "content": {
+    "one_sentence": "ConCoder 通过对比学习分离正确与错误代码的表示，结合执行反馈，使模型在单轮生成中直接输出正确代码，避免迭代纠错，在 HumanEval 和 MBPP 系列基准上显著超越先前最佳反馈模型。",
+    "quick_takeaways": [
+      "现有方法将错误代码、反馈和正确代码拼接训练，导致模型同时学会生成正确与错误代码，推理时需多轮迭代才能纠正，过程繁琐。",
+      "ConCoder 引入对比学习，拉近正确代码对、拉远错误代码与正确代码的距离，减少错误模式干扰。",
+      "在 HumanEval+ 和 MBPP+ 上，基于 DeepseekCoder 的 ConCoder 将 MBPP pass@1 从 73.9% 提升至 81.7%，平均相对提升 3%-7%。",
+      "消融实验证实，移除对比损失后性能明显下降，验证了对比学习的关键作用。"
+    ],
+    "problem_and_motivation": "现有集成执行反馈的代码生成训练方法将错误代码、反馈和最终正确代码拼接为目标序列，导致模型在推理时同时增加生成正确和错误代码的概率。虽然多轮反馈迭代最终可得到正确答案，但过程繁琐耗时，不符合用户对即时准确结果的需求。动机是让模型从一开始就生成正确代码，避免错误代码的干扰，提升效率。",
+    "method_overview": "ConCoder 基于对比学习，利用执行反馈区分正确与错误代码。训练时，对同一问题的不同对话交互中的正确代码表示进行拉近，错误代码表示与正确代码表示推远，同时结合交叉熵损失，使模型理解错误原因并避免重犯，从而在单轮生成中直接输出正确代码。",
+    "method_steps": [
+      "构建包含错误代码、执行反馈和正确代码的多轮对话数据，每个样本包含至少两个对话交互的正确与错误代码对。",
+      "提取正确代码和错误代码的最后一层隐藏状态，经均值池化得到表示向量 h（正确）和 ĥ（错误）。",
+      "计算 InfoNCE 对比损失，最大化正确代码对之间的余弦相似度，最小化错误代码与正确代码之间的相似度。",
+      "将对比损失与交叉熵损失加权求和（L = α·L_InfoNCE + L_CE），通过超参数 α 平衡两者，联合优化模型。"
+    ],
+    "core_figures": [
+      {
+        "page": 2,
+        "title": "图 1：对比学习训练过程示意",
+        "what_to_look": "左侧和右侧分别展示同一问题的两次对话交互，蓝色框为错误代码，粉色框为正确代码，箭头表示对比学习拉近两个正确代码表示、推远错误代码与正确代码表示。",
+        "what_it_proves": "直观展示了 ConCoder 如何通过表示空间中的距离调整，分离正确与错误代码，避免模型同时学习两种模式。",
+        "why_important": "该图是理解方法核心机制的关键，说明了对比学习在代码生成中的具体作用方式。",
+        "image_path": "papers/.quick_reading_cache/032767ba38bf9c56/page_002.png",
+        "reason": "方法总览图"
+      },
+      {
+        "page": 4,
+        "title": "表 1：各模型在 HumanEval(+) 和 MBPP(+) 上的 Pass@1 结果",
+        "what_to_look": "对比 ConCoder 与 OpenCodeInterpreter 等模型，尤其关注基于 DeepseekCoder-6.7B 的 ConCoder 在 MBPP 上从 73.9% 提升到 81.7%，以及消融行（去除对比损失、去除一个负样本对）的性能变化。",
+        "what_it_proves": "ConCoder 在所有基准上均优于先前最佳反馈模型，且消融实验证实对比损失对性能提升至关重要。",
+        "why_important": "该表是论文实验结论的核心证据，量化了方法的有效性和对比学习组件的贡献。",
+        "image_path": "papers/.quick_reading_cache/032767ba38bf9c56/page_004.png",
+        "reason": "分析或消融页"
+      }
+    ],
+    "experiment_read": "训练数据为 200k 条由 GPT-4 生成的带执行反馈的代码示例。评估采用单轮生成 pass@1，在 HumanEval、HumanEval+、MBPP、MBPP+ 四个数据集上进行。基于 CodeLlama-7B 和 DeepseekCoder-6.7B 的 ConCoder 平均相对提升 3%-7%，其中 DeepseekCoder 版本在 MBPP 上达到 81.7%。消融实验显示，完全移除对比损失后性能大幅下降，仅移除一个负样本对的影响较小，证明对比学习是性能提升的关键。",
+    "contributions": [
+      "首次将对比学习引入代码大语言模型训练，通过增大正确与错误代码表示的距离提升生成质量。",
+      "强调对错误代码的反馈分析，使模型不仅知道结果对错，还能理解错误原因，增强纠错能力。",
+      "在 HumanEval(+) 和 MBPP(+) 上取得显著提升，超越先前最佳的 OpenCodeInterpreter，平均相对提升 3%-7%。",
+      "方法可适配不同基础模型（CodeLlama、DeepseekCoder），具有通用性。"
+    ],
+    "limitations": [
+      "论文中未明确说明。"
+    ],
+    "deep_read_suggestions": [
+      "建议先精读第 2 节 Methodology（第 2-3 页），理解对比损失与交叉熵损失如何结合，以及图 1 所示的具体训练流程。",
+      "然后阅读第 3 节 Experiment（第 3-4 页），重点关注表 1 的结果对比和消融分析，理解性能提升的来源。",
+      "最后可回顾第 1 节 Introduction（第 1 页），明确研究动机和现有方法的缺陷。"
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "paper/programming language confusion.pdf": {
+    "file_key": "paper/programming language confusion.pdf",
+    "title": "Programming Language Confusion",
+    "authors": "Unknown",
+    "year": "",
+    "venue": "",
+    "tags": [
+      "paper"
+    ],
+    "pdf": "papers/paper/Programming%20Language%20Confusion.pdf",
+    "pdf_local": "papers/paper/Programming%20Language%20Confusion.pdf",
+    "read": false,
+    "bib": "",
+    "notes": "",
+    "added_at": "2026-06-04T17:12:42"
+  },
+  "paper/zhang和yang - 2025 - extracting the essence and discarding the dross enhancing code generation with contrastive executio.pdf": {
+    "file_key": "paper/zhang和yang - 2025 - extracting the essence and discarding the dross enhancing code generation with contrastive executio.pdf",
+    "title": "Zhang和Yang - 2025 - Extracting the Essence and Discarding the Dross Enhancing Code Generation with Contrastive Executio",
+    "authors": "Unknown",
+    "year": "",
+    "venue": "",
+    "tags": [
+      "paper"
+    ],
+    "pdf": "papers/paper/Zhang%E5%92%8CYang%20-%202025%20-%20Extracting%20the%20Essence%20and%20Discarding%20the%20Dross%20Enhancing%20Code%20Generation%20with%20Contrastive%20Executio.pdf",
+    "pdf_local": "papers/paper/Zhang%E5%92%8CYang%20-%202025%20-%20Extracting%20the%20Essence%20and%20Discarding%20the%20Dross%20Enhancing%20Code%20Generation%20with%20Contrastive%20Executio.pdf",
+    "read": false,
+    "bib": "",
+    "notes": "",
+    "added_at": "2026-06-04T17:14:32"
+  }
+}
